@@ -33,12 +33,12 @@ class CreateDatabase(Command):
 
 class DestroyDatabase(Command):
     """
-    Creates the database based on models.py
+    Deletes the database based on models.py
     """
     @staticmethod
     def run(app=app):
         """
-        Creates the database in the application context
+        Deletes the database in the application context
         :return: no return
         """
         app.db.session.remove()
