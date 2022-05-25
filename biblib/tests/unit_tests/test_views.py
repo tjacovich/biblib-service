@@ -1511,7 +1511,7 @@ class TestDocumentViews(TestCaseDatabase):
             # Get stub data for the document
 
             # Add a document to the library
-            number_added = self.document_view.add_document_to_library(
+            number_added, invalid_bibcodes = self.document_view.add_document_to_library(
                 library_id=library_id,
                 document_data=self.stub_library.document_view_post_data('add')
             )
@@ -1523,7 +1523,7 @@ class TestDocumentViews(TestCaseDatabase):
                 self.assertIn(list(self.stub_library.bibcode.keys())[0], _lib.bibcode)
 
             # Add a different document to the library
-            number_added = self.document_view.add_document_to_library(
+            number_added, invalid_bibcodes = self.document_view.add_document_to_library(
                 library_id=library_id,
                 document_data=self.stub_library_2.document_view_post_data('add')
             )
@@ -1566,14 +1566,14 @@ class TestDocumentViews(TestCaseDatabase):
             # Get stub data for the document
 
             # Add a document to the library
-            number_added = self.document_view.add_document_to_library(
+            number_added, invalid_bibcodes = self.document_view.add_document_to_library(
                 library_id=library_id,
                 document_data=self.stub_library.document_view_post_data('add')
             )
             self.assertEqual(number_added, len(self.stub_library.bibcode))
 
             # Shouldn't add the same document again
-            number_added = self.document_view.add_document_to_library(
+            number_added, invalid_bibcodes = self.document_view.add_document_to_library(
                 library_id=library_id,
                 document_data=self.stub_library.document_view_post_data('add')
             )

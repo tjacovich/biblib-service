@@ -4,6 +4,7 @@ Document view
 
 from ..utils import err, get_post_data
 from ..models import Library, Permissions
+from ..client import client
 from .base_view import BaseView
 from flask import request, current_app
 from flask_discoverer import advertise
@@ -12,6 +13,7 @@ from sqlalchemy import Boolean
 from .http_errors import MISSING_USERNAME_ERROR, DUPLICATE_LIBRARY_NAME_ERROR, \
     WRONG_TYPE_ERROR, NO_PERMISSION_ERROR, MISSING_LIBRARY_ERROR, BAD_LIBRARY_ID_ERROR, INVALID_BIBCODE_SPECIFIED_ERROR
 from ..biblib_exceptions import PermissionDeniedError
+from biblib.views import http_errors
 
 
 class DocumentView(BaseView):
@@ -44,19 +46,112 @@ class DocumentView(BaseView):
 
             start_length = len(library.bibcode)
 
-            library.add_bibcodes(document_data['bibcode'])
+            valid_bibcodes = cls.validate_supplied_bibcodes(document_data['bibcode'])
+            invalid_bibcodes = list(set(document_data['bibcode']) - set(valid_bibcodes))
+
+            library.add_bibcodes(valid_bibcodes)
 
             session.add(library)
             session.commit()
 
             current_app.logger.info('Added: {0} is now {1}'.format(
-                document_data['bibcode'],
+                valid_bibcodes,
                 library.bibcode)
             )
 
             end_length = len(library.bibcode)
 
-            return end_length - start_length
+            return (end_length - start_length), invalid_bibcodes
+    
+    @staticmethod
+    def standard_ADS_query(input_bibcodes):
+        """
+        Validates identifiers by collecting all bibcodes returned from a standard query.
+        """
+        bibcodes = input_bibcodes
+        return bibcodes
+    
+    @staticmethod
+    def solr_big_query(
+            bibcodes,
+            start=0,
+            rows=20,
+            sort='date desc',
+            fl='bibcode'
+    ):
+        """
+        A thin wrapper for the solr bigquery service.
+
+        :param bibcodes: bibcodes
+        :type bibcodes: list
+
+        :param start: start index
+        :type start: int
+
+        :param rows: number of rows
+        :type rows: int
+
+        :param sort: how the response should be sorted
+        :type sort: str
+
+        :param fl: Solr fields to be returned
+        :type fl: str
+
+        :return: bibcodes from solr bigquery endpoint response
+        """
+
+        bibcodes_string = 'bibcode\n' + '\n'.join(bibcodes)
+
+        # We need atleast bibcode and alternate bibcode for other methods
+        # to work properly
+        if fl == '':
+            fl = 'bibcode,alternate_bibcode'
+        else:
+            fl_split = fl.split(',')
+            for required_fl in ['bibcode', 'alternate_bibcode']:
+                if required_fl not in fl_split:
+                    fl = '{},{}'.format(fl, required_fl)
+
+        params = {
+            'q': '*:*',
+            'wt': 'json',
+            'fl': fl,
+            'rows': rows,
+            'start': start,
+            'fq': '{!bitset}',
+            'sort': sort
+        }
+
+        headers = {
+            'Content-Type': 'big-query/csv',
+            'Authorization': current_app.config.get('SERVICE_TOKEN', request.headers.get('X-Forwarded-Authorization', request.headers.get('Authorization', '')))
+        }
+        current_app.logger.info('Querying Solr bigquery microservice: {0}, {1}'
+                                .format(params,
+                                        bibcodes_string.replace('\n', ',')))
+        response = client().post(
+            url=current_app.config['BIBLIB_SOLR_BIG_QUERY_URL'],
+            params=params,
+            data=bibcodes_string,
+            headers=headers
+        )
+        #returns 
+        return [doc['bibcode'] for doc in response['response']['docs']]
+
+    @classmethod
+    def validate_supplied_bibcodes(cls, input_bibcodes):
+        """
+        Takes a list of input bibcodes and validates there existence in ADS
+        through the API. Calls either standard search or bigquery depending 
+        on the query length.
+        """
+        valid_bibcodes = []
+        bigquery_min = 10
+        if len(input_bibcodes) < bigquery_min:
+            valid_bibcodes = cls.standard_ADS_query(input_bibcodes)
+        else:
+            valid_bibcodes = cls.solr_big_query(input_bibcodes, rows=len(input_bibcodes))
+        return valid_bibcodes
 
     @classmethod
     def remove_documents_from_library(cls, library_id, document_data):
@@ -269,15 +364,20 @@ class DocumentView(BaseView):
 
         if data['action'] == 'add':
             current_app.logger.info('User requested to add a document')
-            number_added = self.add_document_to_library(
+            number_added, invalid_bibcodes = self.add_document_to_library(
                 library_id=library,
                 document_data=data
             )
+            full_error = False
             current_app.logger.info(
                 'Successfully added {0} documents to {1} by {2}'
                 .format(number_added, library, user_editing_uid)
             )
-            return {'number_added': number_added}, 200
+            if not invalid_bibcodes:
+                return {'number_added': number_added}, 200
+            else:
+                if number_added == 0: full_error = True
+                return INVALID_BIBCODE_SPECIFIED_ERROR(invalid_bibcodes, full_error)
 
         elif data['action'] == 'remove':
             current_app.logger.info('User requested to remove a document')

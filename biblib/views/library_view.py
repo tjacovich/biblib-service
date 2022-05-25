@@ -443,7 +443,7 @@ class LibraryView(BaseView):
             )
             return err(MISSING_LIBRARY_ERROR)
 
-        # Skip anymore logic if the library is public or the exception token is present
+        # Skip any more logic if the library is public or the exception token is present
         special_token = current_app.config.get('READONLY_ALL_LIBRARIES_TOKEN')
         if library.public or (special_token and request.headers.get('Authorization', '').endswith(special_token)):
             current_app.logger.info('Library: {0} is public'
