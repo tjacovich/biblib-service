@@ -146,11 +146,15 @@ class DocumentView(BaseView):
         on the query length.
         """
         valid_bibcodes = []
-        bigquery_min = 10
+        bigquery_min = 1
         if len(input_bibcodes) < bigquery_min:
             valid_bibcodes = cls.standard_ADS_query(input_bibcodes)
         else:
-            valid_bibcodes = cls.solr_big_query(input_bibcodes, rows=len(input_bibcodes))
+            try:
+                valid_bibcodes = cls.solr_big_query(input_bibcodes, rows=len(input_bibcodes))
+            except:
+                current_app.logger.error("Failed to collect valid bibcodes from input due to SOLR error")
+                valid_bibcodes = input_bibcodes
         return valid_bibcodes
 
     @classmethod
