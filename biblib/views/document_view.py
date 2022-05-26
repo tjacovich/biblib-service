@@ -129,14 +129,18 @@ class DocumentView(BaseView):
         current_app.logger.info('Querying Solr bigquery microservice: {0}, {1}'
                                 .format(params,
                                         bibcodes_string.replace('\n', ',')))
-        response = client().post(
+        solr = client().post(
             url=current_app.config['BIBLIB_SOLR_BIG_QUERY_URL'],
             params=params,
             data=bibcodes_string,
             headers=headers
-        )
-        #returns 
-        return [doc['bibcode'] for doc in response['response']['docs']]
+        ).json()
+        #returns
+        try: 
+            return [doc['bibcode'] for doc in solr['response']['docs']]
+        except:
+            current_app.logger.error("SOLR gave response {}".format(solr))
+            return []
 
     @classmethod
     def validate_supplied_bibcodes(cls, input_bibcodes):
@@ -146,7 +150,7 @@ class DocumentView(BaseView):
         on the query length.
         """
         valid_bibcodes = []
-        bigquery_min = 1
+        bigquery_min = current_app.config.get('BIBLIB_SOLR_BIG_QUERY_MIN', 10)
         if len(input_bibcodes) < bigquery_min:
             valid_bibcodes = cls.standard_ADS_query(input_bibcodes)
         else:
@@ -154,7 +158,7 @@ class DocumentView(BaseView):
                 valid_bibcodes = cls.solr_big_query(input_bibcodes, rows=len(input_bibcodes))
             except:
                 current_app.logger.error("Failed to collect valid bibcodes from input due to SOLR error")
-                valid_bibcodes = input_bibcodes
+                valid_bibcodes = []
         return valid_bibcodes
 
     @classmethod
