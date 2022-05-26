@@ -46,7 +46,9 @@ class DocumentView(BaseView):
 
             start_length = len(library.bibcode)
 
-            valid_bibcodes = cls.validate_supplied_bibcodes(document_data['bibcode'])
+            valid_bibcodes, internal_fault = cls.validate_supplied_bibcodes(document_data['bibcode'])
+            if internal_fault:
+                return 0, [], internal_fault
             invalid_bibcodes = list(set(document_data['bibcode']) - set(valid_bibcodes))
 
             library.add_bibcodes(valid_bibcodes)
@@ -61,7 +63,7 @@ class DocumentView(BaseView):
 
             end_length = len(library.bibcode)
 
-            return (end_length - start_length), invalid_bibcodes
+            return (end_length - start_length), invalid_bibcodes, internal_fault
     
     @staticmethod
     def standard_ADS_query(input_bibcodes):
@@ -136,11 +138,11 @@ class DocumentView(BaseView):
             headers=headers
         ).json()
         #returns
-        try: 
-            return [doc['bibcode'] for doc in solr['response']['docs']]
-        except:
-            current_app.logger.error("SOLR gave response {}".format(solr))
-            return []
+        # try: 
+        return [doc['bibcode'] for doc in solr['response']['docs']]
+        # except:
+            #current_app.logger.error("SOLR gave response {}".format(solr))
+            # return []
 
     @classmethod
     def validate_supplied_bibcodes(cls, input_bibcodes):
@@ -149,17 +151,23 @@ class DocumentView(BaseView):
         through the API. Calls either standard search or bigquery depending 
         on the query length.
         """
-        valid_bibcodes = []
         bigquery_min = current_app.config.get('BIBLIB_SOLR_BIG_QUERY_MIN', 10)
+        internal_fault = {}
         if len(input_bibcodes) < bigquery_min:
-            valid_bibcodes = cls.standard_ADS_query(input_bibcodes)
+            try:
+                valid_bibcodes = cls.standard_ADS_query(input_bibcodes)
+            except Exception as err:
+                current_app.logger.error("Failed to collect valid bibcodes due to internal error {}.".format(err))
+                valid_bibcodes = []
+                internal_fault = {"error": str(err)}
         else:
             try:
                 valid_bibcodes = cls.solr_big_query(input_bibcodes, rows=len(input_bibcodes))
-            except:
-                current_app.logger.error("Failed to collect valid bibcodes from input due to SOLR error")
+            except Exception as err:
+                current_app.logger.error("Failed to collect valid bibcodes from input due to SOLR error: {}".format(err))
                 valid_bibcodes = []
-        return valid_bibcodes
+                internal_fault = {"error": str(err)}
+        return valid_bibcodes, internal_fault
 
     @classmethod
     def remove_documents_from_library(cls, library_id, document_data):
@@ -372,19 +380,26 @@ class DocumentView(BaseView):
 
         if data['action'] == 'add':
             current_app.logger.info('User requested to add a document')
-            number_added, invalid_bibcodes = self.add_document_to_library(
+            number_added, invalid_bibcodes, internal_fault = self.add_document_to_library(
                 library_id=library,
                 document_data=data
             )
-            full_error = False
+            if internal_fault:
+                return dict(body='Failed to validate bibcodes. Please try again later.',
+                number=500)
+
             current_app.logger.info(
                 'Successfully added {0} documents to {1} by {2}'
                 .format(number_added, library, user_editing_uid)
             )
+
             if not invalid_bibcodes:
                 return {'number_added': number_added}, 200
             else:
-                if number_added == 0: full_error = True
+                if number_added == 0: 
+                    full_error = True
+                else:
+                    full_error = False
                 return INVALID_BIBCODE_SPECIFIED_ERROR(invalid_bibcodes, full_error)
 
         elif data['action'] == 'remove':
