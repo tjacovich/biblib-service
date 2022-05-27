@@ -66,12 +66,49 @@ class DocumentView(BaseView):
             return (end_length - start_length), invalid_bibcodes, internal_fault
     
     @staticmethod
-    def standard_ADS_query(input_bibcodes):
+    def standard_ADS_query(input_bibcodes,
+            start=0,
+            rows=20,
+            sort='date desc',
+            fl='bibcode'):
         """
         Validates identifiers by collecting all bibcodes returned from a standard query.
         """
-        bibcodes = input_bibcodes
-        return bibcodes
+        bibcode_query ="q=bibcode%3A("+"%20OR".join(input_bibcodes)+")"
+        if fl == '':
+            fl = 'bibcode,alternate_bibcode'
+        else:
+            fl_split = fl.split(',')
+            for required_fl in ['bibcode', 'alternate_bibcode']:
+                if required_fl not in fl_split:
+                    fl = '{},{}'.format(fl, required_fl)
+
+        params = {
+            'q': bibcode_query,
+            'wt': 'json',
+            'fl': fl,
+            'rows': rows,
+            'start': start,
+            'fq': '{!bitset}',
+            'sort': sort
+        }
+
+        headers = {
+            'Content-Type': 'query/csv',
+            'Authorization': current_app.config.get('SERVICE_TOKEN', request.headers.get('X-Forwarded-Authorization', request.headers.get('Authorization', '')))
+        }
+        current_app.logger.info('Querying Search microservice: {0}'
+                                .format(params))
+        solr = client().post(
+            url=current_app.config['BIBLIB_QUERY_URL'],
+            params=params,
+            headers=headers
+        ).json()
+        #returns
+        try: 
+            return [doc['bibcode'] for doc in solr['response']['docs']]
+        except:
+            return input_bibcodes
     
     @staticmethod
     def solr_big_query(
