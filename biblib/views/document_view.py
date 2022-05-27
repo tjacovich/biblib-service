@@ -94,13 +94,13 @@ class DocumentView(BaseView):
         }
 
         headers = {
-            'Content-Type': 'query/csv',
+            'Content-Type': 'application/json',
             'Authorization': current_app.config.get('SERVICE_TOKEN', request.headers.get('X-Forwarded-Authorization', request.headers.get('Authorization', '')))
         }
         current_app.logger.info('Querying Search microservice: {0}'
                                 .format(params))
-        solr = client().post(
-            url=current_app.config['BIBLIB_QUERY_URL'],
+        solr = client().get(
+            url=current_app.config['BIBLIB_SOLR_SEARCH_URL'],
             params=params,
             headers=headers
         ).json()
