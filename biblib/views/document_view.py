@@ -199,7 +199,7 @@ class DocumentView(BaseView):
                 internal_fault = {"error": str(err)}
         else:
             try:
-                valid_bibcodes = cls.solr_big_query(input_bibcodes, rows=len(input_bibcodes))
+                valid_bibcodes = cls.solr_big_query(input_bibcodes, rows=min(len(input_bibcodes),current_app.config.get('BIBLIB_MAX_ROWS', len(input_bibcodes))))
             except Exception as err:
                 current_app.logger.error("Failed to collect valid bibcodes from input due to SOLR error: {}".format(err))
                 valid_bibcodes = []
@@ -423,7 +423,7 @@ class DocumentView(BaseView):
             )
             if internal_fault:
                 return dict(body='Failed to validate bibcodes. Please try again later.',
-                number=500)
+                number=500, number_added = number_added)
 
             current_app.logger.info(
                 'Successfully added {0} documents to {1} by {2}'
