@@ -303,7 +303,7 @@ class MockSolrQueryService(MockADSWSAPI):
                         'wt': 'json'
                     }
 
-            if self.kwargs.get('params'): params = self.kwarg.get('params')
+            if self.kwargs.get('params'): params = self.kwargs.get('params')
 
             resp = {
                 'responseHeader': {
