@@ -461,8 +461,7 @@ class DocumentView(BaseView):
 class QueryView(BaseView):
     """
     End point to interact with a specific library, by adding documents and
-    removing documents. You also use this endpoint to delete the entire
-    library as this method should be scoped.
+    removing documents.
     """
     # TODO: adding tags using PUT for RESTful endpoint?
 
@@ -489,7 +488,7 @@ class QueryView(BaseView):
             start_length = len(library.bibcode)
             #Validate supplied bibcodes to confirm they exist in SOLR
             current_app.logger.info("Calling SOLR Query with params: {}".format(document_data.get('params')))
-            solr_resp, status_code = cls._query_ADS_bibcodes(document_data.get('params'))
+            solr_resp, status_code = cls._standard_ADS_bibcode_query(document_data.get('params'))
             current_app.logger.info("SOLR response: {}".format(solr_resp))
             
             if "error" in solr_resp.keys():
@@ -532,7 +531,7 @@ class QueryView(BaseView):
         current_app.logger.info('Removing a document: {0} from library_uuid: '
                                 '{1}'.format(document_data, library_id))
         current_app.logger.info("Calling SOLR Query with params: {}".format(document_data.get('params')))
-        solr_resp, status_code = cls._query_ADS_bibcodes(document_data.get('params'))
+        solr_resp, status_code = cls._standard_ADS_bibcode_query(document_data.get('params'))
         current_app.logger.info("SOLR response: {}".format(solr_resp))
 
         if "error" in solr_resp.keys():
@@ -646,7 +645,7 @@ class QueryView(BaseView):
             return False
 
     @staticmethod
-    def _query_ADS_bibcodes(params):
+    def _standard_ADS_bibcode_query(params):
         """
         Generates bibcodes by performing a standard query based on the supplied parameters.
         """
