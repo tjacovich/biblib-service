@@ -139,6 +139,30 @@ class LibraryView(BaseView):
         return False
 
     @staticmethod
+    def timestamp_sort(response, library, reverse=False):
+        """
+        Take a solr response and sort it based on the timestamps contained in the library
+        :input: response: response from SOLR bigquery
+        :input: library: The original library
+
+        :return: response: SOLR response sorted by when each item was added.
+        """
+        if response.ok:
+            try:
+                #First we generate a list of timestamps for the valid bibcodes
+                timestamp = [library.bibcodes[doc['bibcode']]['timestamp'] for doc in response.json['docs']]
+                #Then we sort the SOLR response by the generated timestamp list
+                response.json['docs'] = [\
+                    doc for (doc, timestamp) in sorted(zip(response.json['docs'], timestamp, reversed=reverse), key = lambda stamped: stamped[1])\
+                    ]
+            except:
+                current_app.logger.warn("Failed to retrieve timestamps for {}. Returning default sorting.".format(library.id))
+        else:
+            current_app.logger.warn("SOLR bigquery returned status code {}. Stopping.".format(response.status_code))
+
+        return response
+
+    @staticmethod
     def solr_update_library(library_id, solr_docs):
         """
         Updates the library based on the solr canonical bibcodes response
