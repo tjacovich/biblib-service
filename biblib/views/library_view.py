@@ -139,7 +139,7 @@ class LibraryView(BaseView):
         return False
 
     @staticmethod
-    def timestamp_sort(response, library, reverse=False):
+    def timestamp_sort(solr, library, reverse=False):
         """
         Take a solr response and sort it based on the timestamps contained in the library
         :input: response: response from SOLR bigquery
@@ -147,20 +147,20 @@ class LibraryView(BaseView):
 
         :return: response: SOLR response sorted by when each item was added.
         """
-        if response.ok:
+        if solr['response'].ok:
             try:
                 #First we generate a list of timestamps for the valid bibcodes
-                timestamp = [library.bibcodes[doc['bibcode']]['timestamp'] for doc in response.json['docs']]
+                timestamp = [library.bibcodes[doc['bibcode']]['timestamp'] for doc in solr['response']['docs']]
                 #Then we sort the SOLR response by the generated timestamp list
-                response.json['docs'] = [\
-                    doc for (doc, timestamp) in sorted(zip(response.json['docs'], timestamp, reversed=reverse), key = lambda stamped: stamped[1])\
+                solr['response']['docs'] = [\
+                    doc for (doc, timestamp) in sorted(zip(solr['response']['docs'], timestamp, reversed=reverse), key = lambda stamped: stamped[1])\
                     ]
             except:
                 current_app.logger.warn("Failed to retrieve timestamps for {}. Returning default sorting.".format(library.id))
         else:
-            current_app.logger.warn("SOLR bigquery returned status code {}. Stopping.".format(response.status_code))
+            current_app.logger.warn("SOLR bigquery returned status code {}. Stopping.".format(solr['response'].status_code))
 
-        return response
+        return solr
 
     @staticmethod
     def solr_update_library(library_id, solr_docs):
@@ -320,6 +320,12 @@ class LibraryView(BaseView):
             start = 0
             rows = 20
         sort = request.args.get('sort', 'date desc')
+        #timestamp sorting is handled in biblib so we need to change the sort to something SOLR understands.
+        if "time" in sort:
+            add_sort = sort 
+            sort = 'date desc'
+        else: add_sort = None
+
         fl = request.args.get('fl', 'bibcode')
         current_app.logger.info('User gave pagination parameters:'
                                 'start: {}, '
@@ -372,6 +378,11 @@ class LibraryView(BaseView):
                     library_id=library.id,
                     solr_docs=solr['response']['docs']
                 )
+                if add_sort:
+                    if 'asc' in add_sort: 
+                        solr = self.timestamp_sort(solr, library, reverse=True)
+                    else:
+                        solr = self.timestamp_sort(solr, library)
 
                 documents = [i['bibcode'] for i in solr['response']['docs']]
             else:
