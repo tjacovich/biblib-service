@@ -230,7 +230,7 @@ class Library(Base):
         """
         if not self.bibcode:
             self.bibcode = {}
-        [self.bibcode.setdefault(item, {"timestamp":datetime.timestamp(datetime.now())}) for item in bibcodes]
+        [self.bibcode.setdefault(item, {"timestamp": datetime.timestamp(datetime.now())}) for item in bibcodes]
 
     def remove_bibcodes(self, bibcodes):
         """
