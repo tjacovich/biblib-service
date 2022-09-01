@@ -9,6 +9,7 @@ from .base_view import BaseView
 from flask import request, current_app
 from flask_discoverer import advertise
 from sqlalchemy import Boolean
+from datetime import datetime
 from .http_errors import MISSING_USERNAME_ERROR, SOLR_RESPONSE_MISMATCH_ERROR, \
     MISSING_LIBRARY_ERROR, NO_PERMISSION_ERROR, BAD_LIBRARY_ID_ERROR
 
@@ -180,6 +181,7 @@ class LibraryView(BaseView):
         canonical_bibcodes = []
         alternate_bibcodes = {}
         new_bibcode = {}
+        default_timestamp = datetime.timestamp(datetime(2022,1,1))
 
         # Constants for the return dictionary
         num_updated = 0
@@ -198,7 +200,9 @@ class LibraryView(BaseView):
         with current_app.session_scope() as session:
             library = session.query(Library).filter(Library.id == library_id).one()
             for bibcode in library.bibcode:
-
+                if "timestamp" not in library.bibcode[bibcode].keys():
+                    library.bibcode[bibcode]["timestamp"] = default_timestamp
+                
                 # Skip if its already canonical
                 if bibcode in canonical_bibcodes:
                     new_bibcode[bibcode] = library.bibcode[bibcode]
