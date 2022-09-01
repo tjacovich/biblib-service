@@ -9,6 +9,7 @@ from .base_view import BaseView
 from flask import request, current_app
 from flask_discoverer import advertise
 from sqlalchemy import Boolean
+from sqlalchemy.orm.attributes import flag_modified
 from datetime import datetime
 from .http_errors import MISSING_USERNAME_ERROR, SOLR_RESPONSE_MISMATCH_ERROR, \
     MISSING_LIBRARY_ERROR, NO_PERMISSION_ERROR, BAD_LIBRARY_ID_ERROR
@@ -148,16 +149,16 @@ class LibraryView(BaseView):
 
         :return: response: SOLR response sorted by when each item was added.
         """
-        if solr['response'].ok:
+        if "error" not in solr['response'].keys():
             try:
                 #First we generate a list of timestamps for the valid bibcodes
-                timestamp = [library.bibcodes[doc['bibcode']]['timestamp'] for doc in solr['response']['docs']]
+                timestamp = [library.bibcode[doc['bibcode']]['timestamp'] for doc in solr['response']['docs']]
                 #Then we sort the SOLR response by the generated timestamp list
                 solr['response']['docs'] = [\
-                    doc for (doc, timestamp) in sorted(zip(solr['response']['docs'], timestamp, reversed=reverse), key = lambda stamped: stamped[1])\
+                    doc for (doc, timestamp) in sorted(zip(solr['response']['docs'], timestamp), reverse=reverse, key = lambda stamped: stamped[1])\
                     ]
-            except:
-                current_app.logger.warn("Failed to retrieve timestamps for {}. Returning default sorting.".format(library.id))
+            except Exception as e:
+                current_app.logger.warn("Failed to retrieve timestamps for {} with exception: {}. Returning default sorting.".format(library.id, e))
         else:
             current_app.logger.warn("SOLR bigquery returned status code {}. Stopping.".format(solr['response'].status_code))
 
@@ -201,6 +202,7 @@ class LibraryView(BaseView):
             library = session.query(Library).filter(Library.id == library_id).one()
             for bibcode in library.bibcode:
                 if "timestamp" not in library.bibcode[bibcode].keys():
+                    update = True
                     library.bibcode[bibcode]["timestamp"] = default_timestamp
                 
                 # Skip if its already canonical
@@ -229,6 +231,7 @@ class LibraryView(BaseView):
                 # Update the database
                 library.bibcode = new_bibcode
                 session.add(library)
+                flag_modified(library, "bibcode")
                 session.commit()
 
             updates = dict(
