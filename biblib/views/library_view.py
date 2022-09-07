@@ -141,7 +141,7 @@ class LibraryView(BaseView):
         return False
 
     @staticmethod
-    def timestamp_sort(solr, library, reverse=False):
+    def timestamp_sort(solr, library_id, reverse=False):
         """
         Take a solr response and sort it based on the timestamps contained in the library
         :input: response: response from SOLR bigquery
@@ -151,12 +151,15 @@ class LibraryView(BaseView):
         """
         if "error" not in solr['response'].keys():
             try:
-                #First we generate a list of timestamps for the valid bibcodes
-                timestamp = [library.bibcode[doc['bibcode']]['timestamp'] for doc in solr['response']['docs']]
-                #Then we sort the SOLR response by the generated timestamp list
-                solr['response']['docs'] = [\
-                    doc for (doc, timestamp) in sorted(zip(solr['response']['docs'], timestamp), reverse=reverse, key = lambda stamped: stamped[1])\
-                    ]
+                 with current_app.session_scope() as session:
+                    # Find the specified library
+                    library = session.query(Library).filter_by(id=library_id).one()
+                    #First we generate a list of timestamps for the valid bibcodes
+                    timestamp = [library.bibcode[doc['bibcode']]['timestamp'] for doc in solr['response']['docs']]
+                    #Then we sort the SOLR response by the generated timestamp list
+                    solr['response']['docs'] = [\
+                            doc for (doc, timestamp) in sorted(zip(solr['response']['docs'], timestamp), reverse=reverse, key = lambda stamped: stamped[1])\
+                        ]
             except Exception as e:
                 current_app.logger.warn("Failed to retrieve timestamps for {} with exception: {}. Returning default sorting.".format(library.id, e))
         else:
@@ -387,9 +390,9 @@ class LibraryView(BaseView):
                 )
                 if add_sort:
                     if 'asc' in add_sort: 
-                        solr = self.timestamp_sort(solr, library, reverse=True)
+                        solr = self.timestamp_sort(solr, library.id, reverse=True)
                     else:
-                        solr = self.timestamp_sort(solr, library)
+                        solr = self.timestamp_sort(solr, library.id)
 
                 documents = [i['bibcode'] for i in solr['response']['docs']]
             else:
