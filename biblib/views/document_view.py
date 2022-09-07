@@ -279,6 +279,47 @@ class DocumentView(BaseView):
             return True
         else:
             return False
+    
+    @classmethod
+    def get_document_private_note(library_id, bibcode, user_id):
+        """
+        Collect user notes for a given document in a library
+        
+        :param library_id: The id of the library.
+        :param bibcode: The bibcode of the document.
+        :param user_id: The id of the user requesting the note.
+
+        :return note_contents: The user notes stored for the given bibcode and user.
+        """
+        with current_app.session_scope() as session:
+            library = session.query(Library).filter_by(id=library_id).one()
+            documents = library.bibcode.get(bibcode, {})
+            note_contents = documents.get(user_id, {})
+            return note_contents
+    
+    @classmethod
+    def store_document_private_note(library_id, bibcode, user_id, note_contents):
+        """
+        Write user notes for a given document in a library
+        
+        :param library_id: The id of the library.
+        :param bibcode: The bibcode of the document.
+        :param user_id: The id of the user requesting the note.
+        :param note_contents: The note to be saved to the database.
+
+        :return success: bool declaring whether the document was successfully saved.
+        """
+        with current_app.session_scope() as session:
+            library = session.query(Library).filter_by(id=library_id).one()
+            try:
+                library.bibcode[bibcode][user_id] = note_contents
+                session.add(library)
+                session.commit()
+                success = True
+            except:
+                current_app.logger.exception("Failed to write note content to {} for bibcode: {}".format(library_id, bibcode))
+                success = False
+        return success
 
     def post(self, library):
         """
