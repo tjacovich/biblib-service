@@ -478,6 +478,12 @@ class DocumentView(BaseView):
                 )
             return {'number_removed': number_removed}, 200
 
+        elif data['action'] == 'get_notes':
+            current_app.logger.info('User requested to get private notes.')
+
+        elif data['action'] == 'write_notes':
+            current_app.logger.info('User requested to write private notes.')
+            
         else:
             current_app.logger.info('User requested a non-standard action')
             return {}, 400
