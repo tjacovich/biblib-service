@@ -321,6 +321,66 @@ class DocumentView(BaseView):
                 success = False
         return success
 
+    def get(self, library):
+        """
+        HTTP GET request that collects the user notes for a given bibcode in a given library
+        :param library: library ID.
+
+        :return: the document_notes as raw text
+
+        Header:
+        -------
+        Must contain the API forwarded user ID of the user accessing the end
+        point
+
+        GET params:
+        'bibcode' the bibcode of the document being queried
+
+        Return data:
+        -----------
+        bibcode: The bibcode
+        note: The raw note
+
+        Permissions:
+        -----------
+        The following type of user can add documents:
+          - owner
+          - admin
+          - write
+        """
+        # Get the user requesting this from the header
+        try:
+            user_editing = self.helper_get_user_id()
+        except KeyError:
+            return err(MISSING_USERNAME_ERROR)
+
+        # URL safe base64 string to UUID
+        try:
+            library = self.helper_slug_to_uuid(library)
+        except TypeError:
+            return err(BAD_LIBRARY_ID_ERROR)
+
+        user_editing_uid = \
+            self.helper_absolute_uid_to_service_uid(absolute_uid=user_editing)
+
+        # Check the permissions of the user
+        if not self.write_access(service_uid=user_editing_uid,
+                                 library_id=library):
+            return err(NO_PERMISSION_ERROR)
+
+        try:
+            data = get_GET_params(request)
+            bibcode = data["id"]
+        except ValueError as error:
+            current_app.logger.error('Improperly formatted query passed to GET: {0} [{1}]'
+                                     .format(request.data, error))
+            return err(BAD_QUERY_ERROR)
+
+        current_app.logger.info('User requested private notes for {} from {}'.format(bibcode, library))
+        document_note = self.get_document_private_note(library, bibcode, user_editing)
+
+        return {"bibcode": bibcode, "note": document_note}
+
     def post(self, library):
         """
         HTTP POST request that adds a document to a library for a given user
