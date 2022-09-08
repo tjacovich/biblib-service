@@ -286,17 +286,20 @@ class DocumentView(BaseView):
         Collect user notes for a given document in a library
         
         :param library_id: The id of the library.
-        :param bibcode: The bibcode of the document.
+        :param bibcode: List of bibcode for the documents.
         :param user_id: The id of the user requesting the note.
 
         :return note_contents: The user notes stored for the given bibcode and user.
         """
         with current_app.session_scope() as session:
             library = session.query(Library).filter_by(id=library_id).one()
-            documents = library.bibcode.get(bibcode, {})
-            note_contents = documents.get(user_id, {})
+            note_contents = {}
+            for bib in bibcode:
+                documents = library.bibcode.get(bib, {})
+                notes = documents.get("notes", {})
+                note_contents[bib] = notes.get(user_id, {})
             return note_contents
-    
+
     @classmethod
     def store_document_private_note(library_id, bibcode, user_id, note_contents):
         """
@@ -312,7 +315,7 @@ class DocumentView(BaseView):
         with current_app.session_scope() as session:
             library = session.query(Library).filter_by(id=library_id).one()
             try:
-                library.bibcode[bibcode][user_id] = note_contents
+                library.bibcode[bibcode]["notes"][user_id] = note_contents
                 session.add(library)
                 session.commit()
                 success = True
@@ -377,7 +380,7 @@ class DocumentView(BaseView):
             return err(BAD_QUERY_ERROR)
 
         current_app.logger.info('User requested private notes for {} from {}'.format(bibcode, library))
-        document_note = self.get_document_private_note(library, bibcode, user_editing_uid)
+        document_note = self.get_document_private_note(library, [bibcode], user_editing_uid)
 
         return {"bibcode": bibcode, "note": document_note}, 200
 
