@@ -377,9 +377,9 @@ class DocumentView(BaseView):
             return err(BAD_QUERY_ERROR)
 
         current_app.logger.info('User requested private notes for {} from {}'.format(bibcode, library))
-        document_note = self.get_document_private_note(library, bibcode, user_editing)
+        document_note = self.get_document_private_note(library, bibcode, user_editing_uid)
 
-        return {"bibcode": bibcode, "note": document_note}
+        return {"bibcode": bibcode, "note": document_note}, 200
 
     def post(self, library):
         """
@@ -480,10 +480,17 @@ class DocumentView(BaseView):
 
         elif data['action'] == 'get_notes':
             current_app.logger.info('User requested to get private notes.')
+            document_notes = self.get_document_private_note(library, data.get('bibcode'), user_editing_uid)
+            return {'documents':data.get('bibcode'), 'notes': document_notes}, 200
 
         elif data['action'] == 'write_notes':
             current_app.logger.info('User requested to write private notes.')
-            
+            success = self.store_document_private_note(library, data.get('bibcode'), user_editing_uid, data.get('note'))
+            if success: 
+                return {'bibcode': data.get('bibcode'), 'status': 'Saved user private note to library {}'.format(library)}, 200
+            else:
+                return {'bibcode': data.get('bibcode'), 'status': 'Failed to save user private note to library {}'.format(library)}, 400
+
         else:
             current_app.logger.info('User requested a non-standard action')
             return {}, 400
