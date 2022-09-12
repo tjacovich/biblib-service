@@ -490,6 +490,7 @@ class DocumentView(BaseView):
             current_app.logger.info('User requested to write private notes.')
             success = self.store_document_private_note(library, data.get('bibcode'), user_editing_uid, data.get('note'))
             if success: 
+                current_app.logger.info("Success saved user private note for User: {} to library: {} for bibcode: {}.".format(user_editing_uid, library, data.get('bibcode')))
                 return {'bibcode': data.get('bibcode'), 'status': 'Saved user private note to library {}'.format(library)}, 200
             else:
                 return {'bibcode': data.get('bibcode'), 'status': 'Failed to save user private note to library {}'.format(library)}, 400
