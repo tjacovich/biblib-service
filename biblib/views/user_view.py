@@ -59,6 +59,17 @@ class UserView(BaseView):
                 )
         return response
 
+    @staticmethod
+    def query_library_owner(session, library):
+        result = session.query(Permissions, User) \
+            .join(Permissions.user) \
+            .filter(Permissions.library_id == library.id) \
+            .filter(Permissions.permissions['owner'].astext.cast(Boolean).is_(True)) \
+            .one()
+        # owner_permissions, owner = result
+        # owner_absolute_uid = owner.absolute_uid
+        return result[1].absolute_uid
+
     @classmethod
     def get_libraries(cls, service_uid, absolute_uid):
         """
@@ -92,33 +103,24 @@ class UserView(BaseView):
 
                 if permission.permissions['owner']:
                     main_permission = 'owner'
+                    owner_absolute_uid = absolute_uid
                 elif permission.permissions['admin']:
                     main_permission = 'admin'
+                    owner_absolute_uid = cls.query_library_owner(session, library)
                 elif permission.permissions['write']:
                     main_permission = 'write'
+                    owner_absolute_uid = cls.query_library_owner(session, library)
                 elif permission.permissions['read']:
                     main_permission = 'read'
+                    owner_absolute_uid = cls.query_library_owner(session, library)
                 else:
                     main_permission = 'none'
+                    owner_absolute_uid = cls.query_library_owner(session, library)
 
-                if permission.permissions['owner'] or permission.permissions['admin'] and not library.public:
-                    num_users = len(users)
-                elif library.public:
+                if permission.permissions['owner'] or permission.permissions['admin'] or library.public:
                     num_users = len(users)
                 else:
                     num_users = 0
-
-                if main_permission != 'owner':
-                    # get the owner
-                    result = session.query(Permissions, User) \
-                        .join(Permissions.user) \
-                        .filter(Permissions.library_id == library.id) \
-                        .filter(Permissions.permissions['owner'].astext.cast(Boolean).is_(True)) \
-                        .one()
-                    owner_permissions, owner = result
-                    owner_absolute_uid = owner.absolute_uid
-                else:
-                    owner_absolute_uid = absolute_uid
 
                 response = cls.retrieve_user_email(owner_absolute_uid)
 
